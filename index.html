@@ -1,0 +1,1059 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Art History - Network Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+      :root {
+        --bg: #f4f6f8;
+        --panel-bg: rgba(255, 255, 255, 0.95);
+        --text: #2c3e50;
+        --grey: #7f8c8d;
+        --blue: #3498db;
+        --french: #00bcd4;
+        --red: #e74c3c;
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: "Segoe UI", sans-serif;
+        background: var(--bg);
+      }
+
+      /* --- SIDEBAR GAUCHE (DASHBOARD) --- */
+      #sidebar {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        width: 320px;
+        max-height: 90vh;
+        overflow-y: auto;
+        background: var(--panel-bg);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+        box-sizing: border-box;
+        transition: transform 0.3s ease;
+        z-index: 20;
+      }
+      #sidebar.hidden {
+        transform: translateX(-350px);
+      }
+
+      h2 {
+        margin: 0 0 5px 0;
+        font-size: 20px;
+        color: var(--text);
+      }
+      h4 {
+        margin: 15px 0 10px 0;
+        font-size: 12px;
+        text-transform: uppercase;
+        color: var(--grey);
+        border-bottom: 1px solid #eee;
+        padding-bottom: 5px;
+      }
+
+      .stat-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        font-size: 13px;
+      }
+      .stat-val {
+        font-weight: bold;
+        color: var(--blue);
+      }
+
+      /* Charts */
+      .bar-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 4px;
+        font-size: 11px;
+      }
+      .bar-label {
+        width: 120px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-align: right;
+        padding-right: 8px;
+      }
+      .bar-bg {
+        flex-grow: 1;
+        background: #eee;
+        height: 6px;
+        border-radius: 3px;
+        position: relative;
+      }
+      .bar-fill {
+        height: 100%;
+        background: var(--blue);
+        border-radius: 3px;
+        transition: width 0.5s ease;
+      }
+      .bar-num {
+        width: 30px;
+        text-align: right;
+        color: #999;
+        margin-left: 5px;
+      }
+
+      /* --- SIDEBAR DROITE (CONTROLS) --- */
+      #controls-panel {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: 280px;
+        max-height: 90vh;
+        overflow-y: auto;
+        background: var(--panel-bg);
+        backdrop-filter: blur(10px);
+        border-radius: 12px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        padding: 15px;
+        z-index: 20;
+        transition: transform 0.3s ease;
+      }
+      #controls-panel.hidden {
+        transform: translateX(350px);
+      }
+
+      .search-box {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        box-sizing: border-box;
+      }
+      .filter-group label {
+        display: block;
+        margin: 5px 0;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      .shape {
+        width: 12px;
+        height: 12px;
+        display: inline-block;
+      }
+      .shape.circle {
+        border-radius: 50%;
+        background: #333;
+      }
+      .shape.square {
+        background: #bdc3c7;
+      }
+      .shape.diamond {
+        transform: rotate(45deg);
+        background: var(--french);
+        width: 8px;
+        height: 8px;
+      }
+
+      /* Universités Checkboxes */
+      .univ-check-item {
+        font-size: 12px;
+        margin-bottom: 3px;
+        display: flex;
+        align-items: center;
+      }
+      .univ-check-item input {
+        margin-right: 8px;
+      }
+
+      /* --- DETAILS PANEL --- */
+      #details-view {
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 2px solid #eee;
+        display: none;
+      }
+      .detail-name {
+        font-size: 18px;
+        font-weight: bold;
+        color: var(--text);
+      }
+      .collab-box {
+        background: #fff5f5;
+        border-left: 3px solid var(--red);
+        padding: 10px;
+        margin-top: 10px;
+        font-size: 12px;
+      }
+      .tag-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        background: #eee;
+        margin: 2px;
+      }
+
+      /* --- GRAPH --- */
+      #graph {
+        width: 100vw;
+        height: 100vh;
+        cursor: grab;
+      }
+      #graph:active {
+        cursor: grabbing;
+      }
+
+      /* --- BOUTONS TOGGLE (GAUCHE & DROITE) --- */
+      .btn-toggle {
+        position: absolute;
+        top: 15px;
+        width: 30px;
+        height: 30px;
+        background: white;
+        border-radius: 50%;
+        border: none;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+        z-index: 25;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        color: var(--grey);
+        transition: all 0.3s ease;
+      }
+
+      /* Bouton Gauche */
+      #btn-toggle-left {
+        left: 345px;
+      }
+
+      /* Bouton Droite */
+      #btn-toggle-right {
+        right: 335px;
+      }
+
+      /* --- HELP MODAL --- */
+      .btn-help {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        width: 40px;
+        height: 40px;
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 50%;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 18px;
+        color: var(--text);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 30;
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 100;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(4px);
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-content {
+        position: relative;
+        background-color: #fefefe;
+        padding: 40px;
+        border: 1px solid #888;
+        width: 600px;
+        max-width: 90%;
+        max-height: 85vh;
+        overflow-y: auto;
+        border-radius: 12px;
+        box-shadow: 0 5px 30px rgba(0, 0, 0, 0.2);
+        line-height: 1.6;
+        color: #333;
+        font-size: 14px;
+      }
+
+      .close {
+        position: absolute;
+        top: 15px;
+        right: 20px;
+        color: #aaa;
+        font-size: 24px;
+        font-weight: bold;
+        cursor: pointer;
+        line-height: 1;
+      }
+      .close:hover {
+        color: black;
+      }
+
+      .modal-h3 {
+        margin-top: 0;
+        color: var(--blue);
+        border-bottom: 2px solid #eee;
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+      }
+      .modal-section {
+        margin-bottom: 20px;
+      }
+      .modal-strong {
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 5px;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="sidebar">
+      <h2>Art History Network</h2>
+      <div style="font-size: 12px; color: #777; margin-bottom: 15px">
+        Dashboard & Détails
+      </div>
+
+      <div id="default-view">
+        <div class="stat-row">
+          <span>Chercheurs visibles</span
+          ><span class="stat-val" id="st-auth">-</span>
+        </div>
+        <div class="stat-row">
+          <span>Sujets visibles</span
+          ><span class="stat-val" id="st-topic">-</span>
+        </div>
+        <div class="stat-row">
+          <span>Liens actifs</span><span class="stat-val" id="st-link">-</span>
+        </div>
+
+        <h4>Répartition par Université (Visible)</h4>
+        <div id="chart-univ"></div>
+
+        <h4>Top 10 Sujets (Visibles)</h4>
+        <div id="chart-topic"></div>
+      </div>
+
+      <div id="details-view">
+        <button
+          onclick="closeDetails()"
+          style="
+            float: right;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #999;
+          "
+        >
+          ×
+        </button>
+        <div id="detail-content"></div>
+      </div>
+    </div>
+
+    <button class="btn-toggle" id="btn-toggle-left" onclick="toggleSidebar()">
+      ❮
+    </button>
+
+    <div id="controls-panel">
+      <h4>Recherche</h4>
+      <input
+        type="text"
+        id="search"
+        class="search-box"
+        placeholder="Focus sur (Entrée)..."
+        onchange="performSearch()"
+      />
+
+      <h4>Filtres Principaux</h4>
+      <div class="filter-group">
+        <div class="legend-item">
+          <span class="shape circle"></span>
+          <label
+            ><input type="checkbox" id="cb-auth" checked onchange="update()" />
+            Chercheurs</label
+          >
+        </div>
+        <div class="legend-item">
+          <span class="shape square"></span>
+          <label
+            ><input type="checkbox" id="cb-topic" checked onchange="update()" />
+            Sujets Généraux</label
+          >
+        </div>
+        <div class="legend-item">
+          <span class="shape diamond"></span>
+          <label
+            ><input
+              type="checkbox"
+              id="cb-french"
+              checked
+              onchange="update()"
+            />
+            Sujets France</label
+          >
+        </div>
+      </div>
+
+      <h4>Universités</h4>
+      <div id="univ-filters" class="filter-group"></div>
+
+      <div
+        style="
+          margin-top: 20px;
+          font-size: 12px;
+          border-top: 1px solid #eee;
+          padding-top: 10px;
+        "
+      >
+        Degré min. Sujets : <strong id="val-slid">1</strong>
+        <input
+          type="range"
+          id="slider"
+          min="1"
+          max="40"
+          value="1"
+          style="width: 100%"
+          oninput="update()"
+        />
+      </div>
+    </div>
+
+    <button class="btn-toggle" id="btn-toggle-right" onclick="toggleControls()">
+      ❯
+    </button>
+
+    <div id="graph"></div>
+
+    <button class="btn-help" onclick="openModal()">?</button>
+
+    <div id="helpModal" class="modal">
+      <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+
+        <h3 class="modal-h3">
+          Réseau & Visualisation : Chercheurs en Histoire de l'Art (USA ↔
+          France)
+        </h3>
+
+        <div class="modal-section">
+          <div class="modal-strong">Contexte du Projet</div>
+          <p>
+            Ce projet de Humanités Numériques (Université PSL - 2026) propose
+            une visualisation interactive explorant les connexions, sujets de
+            recherche et collaborations des historiens de l'art affiliés à 6
+            grandes universités américaines, avec un focus sur leurs liens avec
+            la France.
+          </p>
+        </div>
+
+        <div class="modal-section">
+          <div class="modal-strong">Objectifs de la Visualisation</div>
+          <ul style="padding-left: 20px; margin-top: 5px">
+            <li>
+              <strong>Qui étudie quoi ?</strong> Identification des sujets
+              majeurs et de niche.
+            </li>
+            <li>
+              <strong>Qui étudie la France ?</strong> Repérage des sujets liés à
+              l'art, l'histoire et la culture française.
+            </li>
+            <li>
+              <strong>Qui collabore activement ?</strong> Mise en évidence des
+              co-publications avec des institutions françaises (Musées,
+              Universités).
+            </li>
+          </ul>
+        </div>
+
+        <div class="modal-section">
+          <div class="modal-strong">Source des Données (OpenAlex)</div>
+          <p>
+            Les liens entre chercheurs et sujets ne sont pas arbitraires. Ils
+            sont générés automatiquement sur la base des données publiques de la
+            plateforme <strong>OpenAlex</strong>. Si un lien existe, c'est
+            qu'une publication ou une œuvre recensée connecte ce chercheur à ce
+            sujet spécifique.
+          </p>
+        </div>
+
+        <div class="modal-section">
+          <div class="modal-strong">Guide de Lecture & Légende</div>
+          <ul style="padding-left: 20px; margin-top: 5px">
+            <li>
+              <span style="color: #2c3e50">●</span>
+              <strong>Cercles (Code Couleur) :</strong> Chercheurs (la couleur
+              indique l'université d'appartenance).
+            </li>
+            <li>
+              <span style="color: #7f8c8d">■</span>
+              <strong>Carrés Gris :</strong> Sujets de recherche généraux.
+            </li>
+            <li>
+              <span style="color: #00bcd4">♦</span>
+              <strong>Losanges Turquoise :</strong> Sujets spécifiquement liés à
+              la France.
+            </li>
+            <li>
+              <strong>Halo Lumineux :</strong> Signale une collaboration
+              institutionnelle avérée avec la France.
+            </li>
+          </ul>
+        </div>
+
+        <div class="modal-section">
+          <div class="modal-strong">Fonctionnalités Interactives</div>
+          <ul style="padding-left: 20px; margin-top: 5px">
+            <li>
+              <strong>Filtres (Panneau de Droite) :</strong> Cochez/décochez
+              pour masquer des universités ou des types de sujets.
+              <em
+                >Note : Le graphe se recharge et se réorganise physiquement à
+                chaque modification pour optimiser la lecture.</em
+              >
+            </li>
+            <li>
+              <strong>Slider "Degré min" :</strong> Permet de réduire le "bruit"
+              visuel en masquant les sujets cités moins de X fois.
+            </li>
+            <li>
+              <strong>Recherche :</strong> Zoom automatique sur un chercheur ou
+              un thème (Entrée pour valider).
+            </li>
+            <li>
+              <strong>Clic sur un nœud :</strong> Affiche les détails
+              (publications, collaborations) dans le panneau de gauche.
+            </li>
+          </ul>
+        </div>
+
+        <div
+          class="modal-section"
+          style="
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+            font-size: 12px;
+            color: #666;
+          "
+        >
+          <div class="modal-strong">Mentions Légales & RGPD</div>
+          <p>
+            Données issues de sources publiques (Open Data) à des fins
+            strictement pédagogiques et non-commerciales. Seules les
+            informations professionnelles sont traitées. Conformément au RGPD,
+            tout droit de retrait peut être exercé sur demande via le dépôt
+            GitHub.
+          </p>
+          <p style="margin-top: 10px">
+            <strong>Réalisé par :</strong> Emna Ben Ameur, Lélie Chénouga,
+            Tabara Guissé, Safia Lamri et Nina Vivier Barte (Université PSL -
+            2026).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // --- VARIABLES GLOBALES ---
+      let allNodes = [],
+        allLinks = [];
+      let width, height;
+      let simulation,
+        linkSelection,
+        nodeSelection,
+        labelSelection,
+        glowSelection;
+      let activeId = null;
+      let distinctUnivs = [];
+
+      const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+      const symDiamond = d3.symbol().type(d3.symbolDiamond).size(150);
+      const symSquare = d3.symbol().type(d3.symbolSquare).size(120);
+      const symCircle = d3.symbol().type(d3.symbolCircle);
+
+      // --- SETUP D3 ---
+      width = window.innerWidth;
+      height = window.innerHeight;
+
+      const svg = d3
+        .select("#graph")
+        .append("svg")
+        .attr("width", "100%")
+        .attr("height", "100%")
+        .on("click", bgClick);
+
+      const g = svg.append("g");
+      const zoom = d3
+        .zoom()
+        .scaleExtent([0.1, 8])
+        .on("zoom", (e) => g.attr("transform", e.transform));
+      svg.call(zoom);
+
+      // Glow Filter
+      const defs = svg.append("defs");
+      const filter = defs.append("filter").attr("id", "glow");
+      filter
+        .append("feGaussianBlur")
+        .attr("stdDeviation", "4")
+        .attr("result", "coloredBlur");
+      const feMerge = filter.append("feMerge");
+      feMerge.append("feMergeNode").attr("in", "coloredBlur");
+      feMerge.append("feMergeNode").attr("in", "SourceGraphic");
+
+      const linkLayer = g.append("g").attr("class", "links");
+      const glowLayer = g.append("g").attr("class", "glows");
+      const nodeLayer = g.append("g").attr("class", "nodes");
+      const labelLayer = g.append("g").attr("class", "labels");
+
+      // --- CHARGEMENT ---
+      Promise.all([d3.json("data_graph.json"), d3.json("data_stats.json")])
+        .then(([graphData, statsData]) => {
+          allNodes = graphData.nodes;
+          allLinks = graphData.links;
+
+          // Extraire universités uniques
+          distinctUnivs = [
+            ...new Set(
+              allNodes
+                .filter((n) => n.Type === "author")
+                .map((n) => n.university),
+            ),
+          ].sort();
+          generateUnivFilters(distinctUnivs);
+
+          initSimulation();
+          update();
+        })
+        .catch((err) => {
+          console.error(err);
+          alert("ERREUR CHARGEMENT ! Utilisez un serveur local.");
+        });
+
+      function generateUnivFilters(univs) {
+        const container = document.getElementById("univ-filters");
+        univs.forEach((u) => {
+          const div = document.createElement("div");
+          div.className = "univ-check-item";
+          const colorBox = `<span style="display:inline-block;width:10px;height:10px;background:${colorScale(u)};margin-right:5px;border-radius:50%;"></span>`;
+          div.innerHTML = `
+                <input type="checkbox" id="cb-univ-${u}" checked onchange="update()">
+                <label for="cb-univ-${u}" style="cursor:pointer; display:flex; align-items:center;">
+                    ${colorBox} ${u}
+                </label>
+            `;
+          container.appendChild(div);
+        });
+      }
+
+      function initSimulation() {
+        simulation = d3
+          .forceSimulation()
+          .force(
+            "link",
+            d3
+              .forceLink()
+              .id((d) => d.id)
+              .distance(90),
+          )
+          .force("charge", d3.forceManyBody().strength(-300))
+          .force("center", d3.forceCenter(width / 2, height / 2))
+          .force(
+            "collide",
+            d3
+              .forceCollide()
+              .radius((d) => d.radius + 5)
+              .iterations(2),
+          );
+
+        simulation.on("tick", ticked);
+      }
+
+      function ticked() {
+        if (linkSelection) {
+          linkSelection
+            .attr("x1", (d) => d.source.x)
+            .attr("y1", (d) => d.source.y)
+            .attr("x2", (d) => d.target.x)
+            .attr("y2", (d) => d.target.y);
+        }
+        if (nodeSelection) {
+          nodeSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
+        }
+        if (glowSelection) {
+          glowSelection.attr("transform", (d) => `translate(${d.x},${d.y})`);
+        }
+        if (labelSelection) {
+          labelSelection.attr("x", (d) => d.x).attr("y", (d) => d.y);
+        }
+      }
+
+      // --- CŒUR DU SYSTÈME : UPDATE & RELOAD ---
+      function update() {
+        // Récupération des filtres
+        const showAuth = document.getElementById("cb-auth").checked;
+        const showTopic = document.getElementById("cb-topic").checked;
+        const showFr = document.getElementById("cb-french").checked;
+        const minDeg = parseInt(document.getElementById("slider").value);
+        document.getElementById("val-slid").innerText = minDeg;
+
+        const activeUnivs = new Set();
+        distinctUnivs.forEach((u) => {
+          const cb = document.getElementById(`cb-univ-${u}`);
+          if (cb && cb.checked) activeUnivs.add(u);
+        });
+
+        const eligibleNodeIds = new Set();
+
+        // Filtrage des NOEUDS
+        allNodes.forEach((n) => {
+          let isVisible = true;
+          if (n.Type === "author") {
+            if (!showAuth || !activeUnivs.has(n.university)) isVisible = false;
+          } else if (n.Type === "macro_topic") {
+            if (!showTopic || n.count < minDeg) isVisible = false;
+          } else if (n.Type === "french_tag") {
+            if (!showFr || n.count < minDeg) isVisible = false;
+          }
+          if (isVisible) eligibleNodeIds.add(n.id);
+        });
+
+        //  Filtrage des LIENS
+        const activeLinks = allLinks.filter((l) => {
+          const sId = typeof l.source === "object" ? l.source.id : l.source;
+          const tId = typeof l.target === "object" ? l.target.id : l.target;
+          return eligibleNodeIds.has(sId) && eligibleNodeIds.has(tId);
+        });
+
+        // Nettoyage des ORPHELINS (Noeuds sans liens actifs)
+        const connectedNodeIds = new Set();
+        activeLinks.forEach((l) => {
+          const sId = typeof l.source === "object" ? l.source.id : l.source;
+          const tId = typeof l.target === "object" ? l.target.id : l.target;
+          connectedNodeIds.add(sId);
+          connectedNodeIds.add(tId);
+        });
+
+        const activeNodes = allNodes.filter((n) => connectedNodeIds.has(n.id));
+
+        // LIENS
+        linkSelection = linkLayer
+          .selectAll("line")
+          .data(activeLinks, (d) => d.id || d.source.id + "-" + d.target.id); // Clé unique
+        linkSelection.exit().remove();
+        const linkEnter = linkSelection
+          .enter()
+          .append("line")
+          .attr("stroke", "#ccc")
+          .attr("stroke-width", 0.6);
+        linkSelection = linkEnter.merge(linkSelection);
+
+        // GLOWS
+        const glowNodes = activeNodes.filter(
+          (d) => d.france_type === "collab" || d.france_type === "both",
+        );
+        glowSelection = glowLayer
+          .selectAll("path")
+          .data(glowNodes, (d) => d.id);
+        glowSelection.exit().remove();
+        const glowEnter = glowSelection
+          .enter()
+          .append("path")
+          .attr("d", (d) =>
+            symCircle.size((d.radius + 6) * (d.radius + 6) * 3)(),
+          )
+          .attr("fill", "none")
+          .attr("stroke", (d) => colorScale(d.university))
+          .attr("stroke-width", 3)
+          .style("filter", "url(#glow)")
+          .attr("opacity", 0.6)
+          .attr("pointer-events", "none");
+        glowSelection = glowEnter.merge(glowSelection);
+
+        // NOEUDS
+        nodeSelection = nodeLayer
+          .selectAll("path")
+          .data(activeNodes, (d) => d.id);
+        nodeSelection.exit().remove();
+        const nodeEnter = nodeSelection
+          .enter()
+          .append("path")
+          .attr("d", (d) => {
+            if (d.Type === "french_tag") return symDiamond();
+            if (d.Type === "macro_topic") return symSquare();
+            return symCircle.size(d.radius * d.radius * 3.14)();
+          })
+          .attr("fill", (d) => {
+            if (d.Type === "french_tag") return "var(--french)";
+            if (d.Type === "macro_topic") return "#bdc3c7";
+            return colorScale(d.university);
+          })
+          .attr("stroke", "#fff")
+          .attr("stroke-width", 1)
+          .on("click", nodeClick)
+          .call(
+            d3
+              .drag()
+              .on("start", dragstart)
+              .on("drag", dragged)
+              .on("end", dragend),
+          );
+        nodeSelection = nodeEnter.merge(nodeSelection);
+
+        // LABELS
+        labelSelection = labelLayer
+          .selectAll("text")
+          .data(activeNodes, (d) => d.id);
+        labelSelection.exit().remove();
+        const labelEnter = labelSelection
+          .enter()
+          .append("text")
+          .text((d) => d.label)
+          .attr("dx", (d) => d.radius + 5)
+          .attr("dy", 4)
+          .attr("font-size", (d) => (d.Type === "author" ? "10px" : "9px"))
+          .attr("fill", (d) => (d.Type === "author" ? "#222" : "#888"))
+          .style("pointer-events", "none");
+        labelSelection = labelEnter.merge(labelSelection);
+
+        // REDÉMARRAGE SIMULATION
+        simulation.nodes(activeNodes);
+        simulation.force("link").links(activeLinks);
+        simulation.alpha(1).restart();
+        updateCharts(activeNodes, activeLinks);
+      }
+
+      function updateCharts(visNodes, visLinks) {
+        const authCount = visNodes.filter((n) => n.Type === "author").length;
+        const topicCount = visNodes.filter((n) => n.Type !== "author").length;
+        document.getElementById("st-auth").innerText = authCount;
+        document.getElementById("st-topic").innerText = topicCount;
+        document.getElementById("st-link").innerText = visLinks.length;
+
+        const univCounts = {};
+        visNodes
+          .filter((n) => n.Type === "author")
+          .forEach((n) => {
+            univCounts[n.university] = (univCounts[n.university] || 0) + 1;
+          });
+        const sortedUnivs = Object.entries(univCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 6);
+        drawDynamicChart("#chart-univ", sortedUnivs);
+
+        const topicDegrees = {};
+        visLinks.forEach((l) => {
+          const tId = typeof l.target === "object" ? l.target.id : l.target;
+          const sId = typeof l.source === "object" ? l.source.id : l.source;
+          const tNode = visNodes.find((n) => n.id === tId);
+          const sNode = visNodes.find((n) => n.id === sId);
+
+          if (tNode && tNode.Type !== "author")
+            topicDegrees[tId] = (topicDegrees[tId] || 0) + 1;
+          if (sNode && sNode.Type !== "author")
+            topicDegrees[sId] = (topicDegrees[sId] || 0) + 1;
+        });
+
+        const topicData = Object.entries(topicDegrees)
+          .map(([id, count]) => {
+            const n = visNodes.find((x) => x.id === id);
+            return [n ? n.label : id, count];
+          })
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10);
+
+        drawDynamicChart("#chart-topic", topicData);
+      }
+
+      function drawDynamicChart(selector, dataArray) {
+        const container = d3.select(selector);
+        container.html("");
+
+        if (dataArray.length === 0) {
+          container
+            .append("div")
+            .style("font-size", "11px")
+            .style("color", "#999")
+            .text("Aucune donnée visible");
+          return;
+        }
+
+        const maxVal = dataArray[0][1];
+        dataArray.forEach(([label, val]) => {
+          const row = container.append("div").attr("class", "bar-item");
+          row
+            .append("div")
+            .attr("class", "bar-label")
+            .text(label)
+            .attr("title", label);
+          const bg = row.append("div").attr("class", "bar-bg");
+          bg.append("div")
+            .attr("class", "bar-fill")
+            .style("width", (val / maxVal) * 100 + "%");
+          row.append("div").attr("class", "bar-num").text(val);
+        });
+      }
+
+      // --- INTERACTIONS ---
+      function nodeClick(event, d) {
+        event.stopPropagation();
+        activeId = d.id;
+
+        const currentLinks = linkSelection.data();
+        const neigh = new Set([d.id]);
+
+        currentLinks.forEach((l) => {
+          if (l.source.id === d.id) neigh.add(l.target.id);
+          if (l.target.id === d.id) neigh.add(l.source.id);
+        });
+
+        nodeSelection.attr("opacity", (n) => (neigh.has(n.id) ? 1 : 0.1));
+        labelSelection.attr("opacity", (n) => (neigh.has(n.id) ? 1 : 0));
+        linkSelection.attr("opacity", (l) =>
+          l.source.id === d.id || l.target.id === d.id ? 1 : 0.05,
+        );
+
+        showDetails(d, currentLinks);
+      }
+
+      function bgClick() {
+        activeId = null;
+        if (nodeSelection) nodeSelection.attr("opacity", 1);
+        if (linkSelection) linkSelection.attr("opacity", 1);
+        if (labelSelection) labelSelection.attr("opacity", 1);
+        closeDetails();
+      }
+
+      function showDetails(d, currentLinks) {
+        document.getElementById("default-view").style.display = "none";
+        document.getElementById("details-view").style.display = "block";
+        const cont = document.getElementById("detail-content");
+
+        let html = `<div class="detail-name">${d.label}</div>`;
+        html += `<div style="color:var(--grey); margin-bottom:10px">${
+          d.Type === "author" ? d.university : "Topic"
+        }</div>`;
+
+        if (d.Type === "author") {
+          if (d.france_type === "collab" || d.france_type === "both") {
+            html += `<div class="collab-box">
+                    <strong>Collaboration</strong><br>
+                    ${d.collab_inst}<br>
+                    <i>"${d.collab_article}"</i><br>
+                    Thème: ${d.collab_theme}
+                </div>`;
+
+            if (d.france_type === "both") {
+              html += `<div style="color:var(--french); margin-top:10px">★ Étudie la France</div>`;
+            }
+          } else if (d.france_type === "study") {
+            html += `<div style="color:var(--french); margin-top:10px">★ Étudie la France</div>`;
+          }
+        } else {
+          const visibleDegree = currentLinks.filter(
+            (l) => l.target.id === d.id || l.source.id === d.id,
+          ).length;
+          html += `<div>Liens visibles : <strong>${visibleDegree}</strong></div>`;
+        }
+
+        cont.innerHTML = html;
+      }
+
+      function closeDetails() {
+        document.getElementById("details-view").style.display = "none";
+        document.getElementById("default-view").style.display = "block";
+      }
+
+      function performSearch() {
+        const val = document.getElementById("search").value.toLowerCase();
+        if (!val) return;
+        const found = nodeSelection
+          .data()
+          .find((n) => n.label.toLowerCase().includes(val));
+
+        if (found) {
+          const scale = 2.5;
+          const x = -found.x * scale + width / 2;
+          const y = -found.y * scale + height / 2;
+          svg
+            .transition()
+            .duration(750)
+            .call(zoom.transform, d3.zoomIdentity.translate(x, y).scale(scale));
+          nodeClick(new Event("click"), found);
+        }
+      }
+
+      // --- TOGGLE PANELS ---
+      function toggleSidebar() {
+        const sb = document.getElementById("sidebar");
+        const btn = document.getElementById("btn-toggle-left");
+        if (sb.classList.contains("hidden")) {
+          sb.classList.remove("hidden");
+          btn.style.left = "345px";
+          btn.innerHTML = "❮";
+        } else {
+          sb.classList.add("hidden");
+          btn.style.left = "20px";
+          btn.innerHTML = "❯";
+        }
+      }
+
+      function toggleControls() {
+        const pan = document.getElementById("controls-panel");
+        const btn = document.getElementById("btn-toggle-right");
+        if (pan.classList.contains("hidden")) {
+          pan.classList.remove("hidden");
+          btn.style.right = "335px";
+          btn.innerHTML = "❯";
+        } else {
+          pan.classList.add("hidden");
+          btn.style.right = "20px";
+          btn.innerHTML = "❮";
+        }
+      }
+
+      // --- MODAL FUNCTIONS ---
+      function openModal() {
+        const m = document.getElementById("helpModal");
+        m.style.display = "flex";
+      }
+      function closeModal() {
+        document.getElementById("helpModal").style.display = "none";
+      }
+      window.onclick = function (event) {
+        const modal = document.getElementById("helpModal");
+        if (event.target == modal) {
+          modal.style.display = "none";
+        }
+      };
+
+      function dragstart(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      }
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+      function dragend(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+    </script>
+  </body>
+</html>
