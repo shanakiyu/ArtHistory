@@ -369,7 +369,7 @@
       feMerge.append("feMergeNode").attr("in", "SourceGraphic");
 
       // --- CHARGEMENT DES JSON ---
-      Promise.all([d3.json("data_graph.json"), d3.json("data_stats.json")])
+      Promise.all([d3.json("network_data_final.json"), d3.json("data_stats.json")])
         .then(([graphData, statsData]) => {
           nodes = graphData.nodes;
           links = graphData.links;
