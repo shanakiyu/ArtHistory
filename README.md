@@ -38,9 +38,9 @@ La visualisation permet de filtrer par université, par type de sujet, et de met
 
 ## Structure du Répertoire
 
-* `index_ultimate.html` : **Le fichier principal.** Contient tout le code (HTML, CSS, JS) et les données JSON intégrées. Il est autonome et fonctionne hors ligne.
-* `FINAL_ARTHISTORY_DONE.csv` : Le dataset source nettoyé et enrichi.
-* `scripts/` : Scripts Python utilisés pour le nettoyage des données et la génération du graphe.
+* `index.html` : **Le fichier principal.** Contient tout le code (HTML, CSS, JS).
+* `final_clean_dataset_csv/` : Le dataset source nettoyé et final a partir duquel nous avons généré les JSON finaux.
+* `scripts/` : Scripts Python utilisés pour le nettoyage des données et la génération des JSON.
 
 ---
 
