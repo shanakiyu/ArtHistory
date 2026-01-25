@@ -46,7 +46,7 @@ La visualisation permet de filtrer par université, par type de sujet, et de met
 
 ## Comment l'utiliser ?
 
-1.  **Clonage :** Clonez ce dépôt ou téléchargez le fichier `index_ultimate.html`.
+1.  **Clonage :** Clonez ce dépôt ou téléchargez le fichier `index.html`.
 2.  **Lancement :** Ouvrez simplement le fichier dans n'importe quel navigateur web moderne (Chrome, Firefox, Edge).
 3.  **Aucune installation** de serveur ou de Python n'est requise pour la lecture de la visualisation.
 
